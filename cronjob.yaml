@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: update-tag-defaults-cj
+  namespace: jobs
+spec:
+  jobTemplate:
+    metadata:
+      name: update-tag-defaults-job
+    spec:
+      template:
+        spec:
+          containers:
+          - image: busybox
+            name: update-job
+          restartPolicy: OnFailure
+  schedule: 0 0 * * *

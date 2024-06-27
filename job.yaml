@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tag-job
+  namespace: jobs
+spec:
+  template:
+    metadata:
+    spec:
+      containers:
+      - args:
+        - -n
+        - A-Team
+        - -k
+        - Expires
+        - --auth
+        - instance_principal
+        image: iad.ocir.io/ociateam/ociateam-tools/tagupdater:1.0
+        name: tag-job
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ocir-iad
