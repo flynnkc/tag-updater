@@ -12,7 +12,7 @@ class TagUpdater:
         self.log = logging.getLogger(__name__)
         self.config = config
         self.compartments = compartments
-        self.client = identity.IdentityClient(config, singer=signer)
+        self.client = identity.IdentityClient(config, signer=signer)
 
     # Tag change behavior defined here
     def update_tags(self, namespace: str, key: str):

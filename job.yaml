@@ -15,7 +15,7 @@ spec:
         - Expires
         - --auth
         - instance_principal
-        image: iad.ocir.io/ociateam/ociateam-tools/tagupdater:1.0
+        image: iad.ocir.io/ociateam/ociateam-tools/tagupdater:latest
         name: tag-job
       restartPolicy: Never
       imagePullSecrets:
