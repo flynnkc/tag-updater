@@ -11,7 +11,16 @@ spec:
       template:
         spec:
           containers:
-          - image: busybox
-            name: update-job
+          - image: iad.ocir.io/ociateam/ociateam-tools/tagupdater:latest
+            name: tag-job
+            args:
+              - -n
+              - A-Team
+              - -k
+              - Expires
+              - --auth
+              - instance_principal
           restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: ocir-iad
   schedule: 0 0 * * *
