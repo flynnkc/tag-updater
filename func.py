@@ -25,7 +25,7 @@ def handler(ctx, data: io.BytesIO = None):
     log.debug(f'Config: {config}\n\tSigner: {signer}')
 
     # Compartments needs to be a list of OCIDs whether provided or not
-    compartments = os.get(ENV_COMPARTMENTS)     # Comma delimited string
+    compartments = os.getenv(ENV_COMPARTMENTS)     # Comma delimited string
     compartments = compartments.split(',') if compartments else [config['tenancy']]
 
     log.info(f'Updating tag default {namespace}.{key} in compartment(s) '
