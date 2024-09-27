@@ -11,10 +11,23 @@ from modules import TagUpdater
 ENV_NAMESPACE = 'TAG_NAMESPACE'
 ENV_KEY = 'TAG_KEY'
 ENV_COMPARTMENTS = 'COMPARTMENTS'
-
-logging.basicConfig(level=logging.INFO)
+ENV_LOGLVL = 'LOG_LEVEL'
+_TREE = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL
+}
 
 def handler(ctx, data: io.BytesIO = None):
+
+    try:
+        logging.basicConfig(level=_TREE[os.getenv(ENV_LOGLVL, 'INFO')])
+    except KeyError:
+        logging.basicConfig(level=logging.INFO)
+        logging.error(f'Invalid log level selected: {os.getenv(ENV_LOGLVL)}'
+                    ' -- Reverting to level INFO')
 
     log = logging.getLogger(__name__)
 
@@ -34,4 +47,4 @@ def handler(ctx, data: io.BytesIO = None):
     tc = TagUpdater(config, compartments, signer=signer)
     tc.update_tags(namespace, key)
 
-    return response.Response()
+    return response.Response(ctx)

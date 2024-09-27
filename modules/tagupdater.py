@@ -14,7 +14,7 @@ class TagUpdater:
         self.compartments = compartments
         self.client = identity.IdentityClient(config, signer=signer)
 
-    # Tag change behavior defined here
+    # Entrypoint method to change tags
     def update_tags(self, namespace: str, key: str):
         for default in self.get_tag_defaults(namespace, key):
             details = identity.models.UpdateTagDefaultDetails(
@@ -22,11 +22,12 @@ class TagUpdater:
                 value=self.get_value()
             )
 
-            self.log.info(f'Updating tag default {default.id} with {details.value}')
+            self.log.debug(f'Updating tag default {default.id} with {details.value}')
 
             response = self.client.update_tag_default(default.id, details)
             if response.status != 200:
-                self.log.error(f'Non-200 status code trying to update {default.id}')
+                self.log.error(f'{response.status} status code trying to update '
+                               f'{default.id}')
 
 
     # Change this method to determine tag value
@@ -39,7 +40,7 @@ class TagUpdater:
     
         ### End changes ###
 
-    # Return list of 
+    # Return list of tag defaults
     def get_tag_defaults(self, namespace: str, key: str) -> list[object]:
         ns_id = self.get_tag_namespace(namespace)
 
@@ -52,6 +53,7 @@ class TagUpdater:
                 if result.tag_definition_name == key and result.tag_namespace_id == ns_id:
                     defaults.append(result)
 
+        self.log.debug(f'Found tag defaults {defaults}')
         return defaults
 
     def get_tag_namespace(self, namespace) -> str:
