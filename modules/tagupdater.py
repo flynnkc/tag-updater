@@ -6,6 +6,7 @@ import logging
 from oci import identity
 from oci import pagination
 from oci.signer import Signer
+from os import getenv
 
 class TagUpdater:
     def __init__(self, config: dict, compartments: list[str], signer: Signer=None):
@@ -35,7 +36,9 @@ class TagUpdater:
         ### Change here ###
 
         # I want to set the tag to a date in the format yyyy-mm-dd
-        date = datetime.date.today() + datetime.timedelta(days=90)
+        date = datetime.date.today() + datetime.timedelta(
+            days=int(getenv('DAYS', '90'))
+        )
         return date.strftime('%Y-%m-%d')
     
         ### End changes ###
@@ -53,7 +56,7 @@ class TagUpdater:
                 if result.tag_definition_name == key and result.tag_namespace_id == ns_id:
                     defaults.append(result)
 
-        self.log.debug(f'Found tag defaults {defaults}')
+        self.log.debug(f'Found tag defaults {", ".join([default.id for default in defaults])}')
         return defaults
 
     def get_tag_namespace(self, namespace) -> str:

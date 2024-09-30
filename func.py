@@ -19,17 +19,22 @@ _TREE = {
     'ERROR': logging.ERROR,
     'CRITICAL': logging.CRITICAL
 }
+    
 
 def handler(ctx, data: io.BytesIO = None):
 
     try:
-        logging.basicConfig(level=_TREE[os.getenv(ENV_LOGLVL, 'INFO')])
+        level = _TREE[os.getenv(ENV_LOGLVL, 'INFO').upper()]
+        logging.basicConfig(level=level, force=True)
     except KeyError:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, force=True)
         logging.error(f'Invalid log level selected: {os.getenv(ENV_LOGLVL)}'
-                    ' -- Reverting to level INFO')
+                ' -- Reverting to level INFO')
 
     log = logging.getLogger(__name__)
+
+    log.debug(f'Log level: {os.getenv(ENV_LOGLVL, "INFO")} -- '
+              f'{log.getEffectiveLevel()}')
 
     namespace = os.getenv(ENV_NAMESPACE)
     key = os.getenv(ENV_KEY)
@@ -46,5 +51,7 @@ def handler(ctx, data: io.BytesIO = None):
 
     tc = TagUpdater(config, compartments, signer=signer)
     tc.update_tags(namespace, key)
+
+    log.info(f'Updates complete on compartments {", ".join(compartments)}')
 
     return response.Response(ctx)
