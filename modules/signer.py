@@ -2,9 +2,7 @@
 
 import logging
 
-from os import getenv
 from oci import Signer
-from oci.config import from_file, get_config_value_or_default, DEFAULT_LOCATION, DEFAULT_PROFILE
 from oci.auth.signers import get_resource_principals_signer
 
 log = logging.getLogger(__name__)
