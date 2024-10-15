@@ -50,8 +50,11 @@ def handler(ctx, data: io.BytesIO = None):
              f'{compartments}')
 
     tc = TagUpdater(config, compartments, signer=signer)
-    tc.update_tags(namespace, key)
+    data = tc.update_tags(namespace, key)
 
     log.info(f'Updates complete on compartments {", ".join(compartments)}')
 
-    return response.Response(ctx)
+    return response.Response(ctx,
+                             status_code=data[0],
+                             response_data=data[1],
+                             headers={'Content-Type': 'text/plain'})

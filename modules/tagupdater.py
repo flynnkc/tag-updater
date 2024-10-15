@@ -5,6 +5,7 @@ import logging
 
 from oci import identity
 from oci import pagination
+from oci.exceptions import ServiceError
 from oci.signer import Signer
 from os import getenv
 
@@ -16,19 +17,39 @@ class TagUpdater:
         self.client = identity.IdentityClient(config, signer=signer)
 
     # Entrypoint method to change tags
-    def update_tags(self, namespace: str, key: str):
-        for default in self.get_tag_defaults(namespace, key):
-            details = identity.models.UpdateTagDefaultDetails(
-                is_required=default.is_required,
-                value=self.get_value()
-            )
+    def update_tags(self, namespace: str, key: str) -> tuple[int,str]:
+        errors = [] # collect errors outside loop
 
-            self.log.debug(f'Updating tag default {default.id} with {details.value}')
+        # OCI likes to treat non-success responses as exceptions -- prevent it
+        # from stopping execution with try/except
+        try:
+            for default in self.get_tag_defaults(namespace, key):
+                details = identity.models.UpdateTagDefaultDetails(
+                    is_required=default.is_required,
+                    value=self.get_value()
+                )
 
-            response = self.client.update_tag_default(default.id, details)
-            if response.status != 200:
-                self.log.error(f'{response.status} status code trying to update '
-                               f'{default.id}')
+                self.log.debug(f'Updating tag default {default.id} with '
+                               f'{details.value}')
+                
+                try:
+                    self.client.update_tag_default(default.id, details)
+                except ServiceError as e:
+                    error = (f'{e.status} - {e.operation_name} - '
+                                f'{default.tag_definition_name}/{default.id}')
+                    self.log.error(error)
+                    errors.append(error)
+
+        except ServiceError as e:
+            error = f'{e.status} - {e.operation_name} - {namespace}.{key}'
+            self.log.error(error)
+            errors.append(error)
+
+        # Unhappy path
+        if errors:
+            return (400, ', '.join(errors))
+        
+        return (200, 'Updates complete') # Happy path
 
 
     # Change this method to determine tag value
