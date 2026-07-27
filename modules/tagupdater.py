@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+from typing import Any
 
 from oci import identity
 from oci import pagination
@@ -10,15 +11,20 @@ from oci.signer import Signer
 from os import getenv
 
 class TagUpdater:
-    def __init__(self, config: dict, compartments: list[str], signer: Signer=None):
+    def __init__(
+        self,
+        config: dict[str, str],
+        compartments: list[str],
+        signer: Signer | None = None,
+    ) -> None:
         self.log = logging.getLogger(__name__)
         self.config = config
         self.compartments = compartments
         self.client = identity.IdentityClient(config, signer=signer)
 
     # Entrypoint method to change tags
-    def update_tags(self, namespace: str, key: str) -> tuple[int,str]:
-        errors = [] # collect errors outside loop
+    def update_tags(self, namespace: str, key: str) -> tuple[int, str]:
+        errors: list[str] = []  # Collect errors outside the loop.
 
         # OCI likes to treat non-success responses as exceptions -- prevent it
         # from stopping execution with try/except
@@ -40,8 +46,11 @@ class TagUpdater:
                     self.log.error(error)
                     errors.append(error)
 
-        except ServiceError as e:
-            error = f'{e.status} - {e.operation_name} - {namespace}.{key}'
+        except (ServiceError, ValueError) as e:
+            if isinstance(e, ValueError):
+                error = str(e)
+            else:
+                error = f'{e.status} - {e.operation_name} - {namespace}.{key}'
             self.log.error(error)
             errors.append(error)
 
@@ -57,18 +66,18 @@ class TagUpdater:
         ### Change here ###
 
         # I want to set the tag to a date in the format yyyy-mm-dd
-        date = datetime.date.today() + datetime.timedelta(
+        expiration_date = datetime.date.today() + datetime.timedelta(
             days=int(getenv('DAYS', '90'))
         )
-        return date.strftime('%Y-%m-%d')
+        return expiration_date.strftime('%Y-%m-%d')
     
         ### End changes ###
 
     # Return list of tag defaults
-    def get_tag_defaults(self, namespace: str, key: str) -> list[object]:
+    def get_tag_defaults(self, namespace: str, key: str) -> list[Any]:
         ns_id = self.get_tag_namespace(namespace)
 
-        defaults = []
+        defaults: list[Any] = []
         for cmp in self.compartments:
             response = pagination.list_call_get_all_results(
                 self.client.list_tag_defaults, compartment_id=cmp)
@@ -80,7 +89,7 @@ class TagUpdater:
         self.log.debug(f'Found tag defaults {", ".join([default.id for default in defaults])}')
         return defaults
 
-    def get_tag_namespace(self, namespace) -> str:
+    def get_tag_namespace(self, namespace: str) -> str:
         response = pagination.list_call_get_all_results(
             self.client.list_tag_namespaces,
             self.config['tenancy'],
@@ -90,3 +99,5 @@ class TagUpdater:
         for item in response.data:
             if item.name == namespace:
                 return item.id
+
+        raise ValueError(f'Tag namespace not found: {namespace}')
