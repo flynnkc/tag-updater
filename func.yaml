@@ -4,5 +4,5 @@ version: 0.1.13
 runtime: python
 build_image: fnproject/python:3.11-dev
 run_image: fnproject/python:3.11
-entrypoint: /python/bin/fdk /function/func.py handler
+entrypoint: /python/bin/fdk /function/entrypoint.py handler
 memory: 256

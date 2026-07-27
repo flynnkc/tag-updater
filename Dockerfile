@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY func.py container.py ./
+COPY entrypoint.py ./
 COPY modules ./modules
 
-ENTRYPOINT ["python", "/app/func.py"]
+ENTRYPOINT ["python", "/app/entrypoint.py"]
