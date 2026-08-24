@@ -19,19 +19,20 @@ For OKE:
 
 ## Entrypoints
 
-The core update behavior lives in `modules/app.py`.
+The core update behavior lives in `src/modules/app.py`.
 
-- OCI Functions uses `func.py` through the existing `func.yaml` entrypoint:
-
-    ```text
-    /python/bin/fdk /function/func.py handler
-    ```
-
-- OKE or another container runtime uses `container.py` through the `Dockerfile`
+- OCI Functions uses `src/entrypoint.py` through the existing `func.yaml`
   entrypoint:
 
     ```text
-    python /app/container.py
+    /python/bin/fdk /function/src/entrypoint.py handler
+    ```
+
+- OKE or another container runtime uses the same entrypoint through the
+  `Dockerfile`:
+
+    ```text
+    python /app/entrypoint.py
     ```
 
 The container entrypoint runs once and exits `0` for successful updates or `1`
@@ -153,7 +154,7 @@ behavior when resource-principal environment variables are present.
 
 ### OKE CronJob
 
-Use the `Dockerfile` and `container.py` entrypoint to run this project as a
+Use the `Dockerfile` and `entrypoint.py` entrypoint to run this project as a
 Kubernetes CronJob on OKE.
 
 #### Build and push the image
