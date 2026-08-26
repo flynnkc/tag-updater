@@ -1,13 +1,9 @@
-replicaCount: 1
-
 image:
-  repository: tag-updater
+  repository: <region>.ocir.io/tag-updater
   pullPolicy: IfNotPresent
   tag: "0.1.14"
 
-imagePullSecrets: []
-nameOverride: ""
-fullnameOverride: ""
+imagePullSecrets: "ocir-secret"
 
 namespace:
   create: false

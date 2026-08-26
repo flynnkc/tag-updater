@@ -33,7 +33,7 @@ spec:
           restartPolicy: {{ .Values.cronJob.restartPolicy }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
-            {{- toYaml . | nindent 12 }}
+            - name: {{ . | quote }}
           {{- end }}
           containers:
             - name: {{ include "tag-updater.name" . }}

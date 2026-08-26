@@ -9,9 +9,7 @@ Check runs with:
 {{- if .Values.imagePullSecrets }}
 
 Image pull secret reference:
-{{- range .Values.imagePullSecrets }}
-  {{ .name }}
-{{- end }}
+  {{ .Values.imagePullSecrets }}
 
 The chart references existing image pull secrets only. Create them in the target
 namespace with kubectl if they do not already exist.
