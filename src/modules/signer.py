@@ -14,6 +14,8 @@ ENV_AUTH_TYPE = 'OCI_SIGNER'
 ENV_RESOURCE_PRINCIPAL_VERSION = 'OCI_RESOURCE_PRINCIPAL_VERSION'
 ENV_KUBERNETES_SERVICE_HOST = 'KUBERNETES_SERVICE_HOST'
 ENV_REGION = 'OCI_RESOURCE_PRINCIPAL_REGION'
+ENV_IDENTITY_REGION = 'OCI_IDENTITY_REGION'
+ENV_HOME_REGION = 'OCI_HOME_REGION'
 ENV_TENANCY_ID = 'OCI_TENANCY_ID'
 
 AUTH_AUTO = 'AUTO'
@@ -39,8 +41,9 @@ def create_signer(auth_type: str | None = None) -> tuple[dict[str, str], Any]:
     else:
         signer = get_resource_principals_signer()
 
+    signer_region = _get_region(signer)
     cfg: dict[str, str] = {
-        'region': _get_region(signer),
+        'region': _get_identity_region(signer_region),
         'tenancy': _get_tenancy_id(signer),
     }
 
@@ -82,6 +85,14 @@ def _get_region(signer: Any) -> str:
         )
 
     return region
+
+
+def _get_identity_region(default_region: str) -> str:
+    return (
+        os.getenv(ENV_IDENTITY_REGION)
+        or os.getenv(ENV_HOME_REGION)
+        or default_region
+    )
 
 
 def _get_tenancy_id(signer: Any) -> str:

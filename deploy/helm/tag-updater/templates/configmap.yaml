@@ -14,6 +14,9 @@ data:
   {{- if .Values.config.compartments }}
   COMPARTMENTS: {{ join "," .Values.config.compartments | quote }}
   {{- end }}
+  {{- if .Values.config.ociIdentityRegion }}
+  OCI_IDENTITY_REGION: {{ .Values.config.ociIdentityRegion | quote }}
+  {{- end }}
   {{- if .Values.config.ociResourcePrincipalRegion }}
   OCI_RESOURCE_PRINCIPAL_REGION: {{ .Values.config.ociResourcePrincipalRegion | quote }}
   {{- end }}

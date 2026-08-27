@@ -99,6 +99,17 @@ CronJobs.
     the generated security token includes a tenancy claim. Required when tenancy
     cannot be derived from the selected signer.
 
+- OCI_IDENTITY_REGION
+
+    OCI region used for Identity/IAM API calls. Set this to the tenancy home
+    region when the workload runs from another region, because IAM updates such
+    as tag default updates must be sent to the home region endpoint. If omitted,
+    the signer region is used.
+
+- OCI_HOME_REGION
+
+    Alias for `OCI_IDENTITY_REGION`.
+
 #### Runtime-provided
 
 These are normally provided by OCI Functions, Kubernetes, or the OCI SDK signer
@@ -159,27 +170,39 @@ Kubernetes CronJob on OKE.
 
 #### Build and push the image
 
-Build the container image:
-
-```sh
-docker build -t tag-updater:0.1.13 .
-```
-
-Tag and push the image to
-[OCI Container Registry](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registrypushingimagesusingthedockercli.htm):
+Build and push the container image for the same CPU architecture as your OKE
+worker nodes. For example, arm64 OKE nodes need a `linux/arm64` image:
 
 ```sh
 export OCIR_REGION=<region-key>
 export OCIR_NAMESPACE=<tenancy-namespace>
 export OCIR_REPOSITORY=<repo-name>
-export IMAGE_TAG=0.1.13
+export IMAGE_TAG=0.1.14
+export IMAGE_PLATFORM=linux/arm64
 
-docker tag tag-updater:${IMAGE_TAG} \
-  ${OCIR_REGION}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPOSITORY}/tag-updater:${IMAGE_TAG}
-
-docker push \
-  ${OCIR_REGION}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPOSITORY}/tag-updater:${IMAGE_TAG}
+docker buildx build \
+  --platform ${IMAGE_PLATFORM} \
+  -t ${OCIR_REGION}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPOSITORY}/tag-updater:${IMAGE_TAG} \
+  --push \
+  .
 ```
+
+Use `IMAGE_PLATFORM=linux/amd64` for amd64 worker nodes. For a mixed-node
+cluster, publish a multi-architecture image:
+
+```sh
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t ${OCIR_REGION}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPOSITORY}/tag-updater:${IMAGE_TAG} \
+  --push \
+  .
+```
+
+An `exec /usr/local/bin/python: exec format error` pod failure means the image
+architecture does not match the node architecture. Check nodes with
+`kubectl get nodes -o wide`, rebuild the image for the reported architecture,
+and use a new tag or set `imagePullPolicy: Always` while testing so the cluster
+does not reuse a cached image.
 
 If the OCIR repository is private, create an image pull secret in the target
 namespace. See Oracle's documentation for
@@ -256,6 +279,7 @@ data:
   DAYS: "90"
   LOG_LEVEL: "INFO"
   OCI_SIGNER: "WORKLOAD_IDENTITY"
+  OCI_IDENTITY_REGION: "<home-region>"
   OCI_RESOURCE_PRINCIPAL_REGION: "<oci-region>"
   OCI_TENANCY_ID: "<tenancy-ocid>"
 ```
@@ -355,6 +379,7 @@ helm upgrade --install tag-updater ./charts/tag-updater \
   --set image.tag=0.1.14 \
   --set config.tagNamespace=<tag-namespace> \
   --set config.tagKey=<tag-key> \
+  --set config.ociIdentityRegion=<home-region> \
   --set config.ociResourcePrincipalRegion=<oci-region> \
   --set config.ociTenancyId=<tenancy-ocid>
 ```
@@ -385,6 +410,7 @@ helm upgrade --install tag-updater ./charts/tag-updater \
   --set image.tag=0.1.14 \
   --set config.tagNamespace=<tag-namespace> \
   --set config.tagKey=<tag-key> \
+  --set config.ociIdentityRegion=<home-region> \
   --set config.ociResourcePrincipalRegion=<oci-region> \
   --set config.ociTenancyId=<tenancy-ocid> \
   --set 'imagePullSecrets[0].name=ocir-pull-secret'

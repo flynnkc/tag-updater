@@ -36,6 +36,7 @@ config:
   days: 90
   logLevel: INFO
   ociSigner: WORKLOAD_IDENTITY
+  ociIdentityRegion: ""
   ociResourcePrincipalRegion: ""
   ociTenancyId: ""
 
