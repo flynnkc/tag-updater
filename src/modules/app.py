@@ -3,6 +3,8 @@
 import logging
 import os
 
+from oci.signer import Signer
+
 from modules import create_signer
 from modules import TagUpdater
 
@@ -10,6 +12,8 @@ ENV_NAMESPACE = 'TAG_NAMESPACE'
 ENV_KEY = 'TAG_KEY'
 ENV_COMPARTMENTS = 'COMPARTMENTS'
 ENV_LOGLVL = 'LOG_LEVEL'
+ENV_OCI_LOG_ID = 'OCI_LOG_ID'
+ENV_OCI_LOG_REGION = 'OCI_LOG_REGION'
 
 _TREE = {
     'DEBUG': logging.DEBUG,
@@ -20,7 +24,9 @@ _TREE = {
 }
 
 
-def configure_logging() -> None:
+def configure_logging(config: dict[str, str] | None = None,
+                      signer: Signer | None = None) -> None:
+    """Configure console logging and, optionally, OCI custom-log delivery."""
     try:
         level = _TREE[os.getenv(ENV_LOGLVL, 'INFO').upper()]
         logging.basicConfig(level=level, force=True)
@@ -29,14 +35,45 @@ def configure_logging() -> None:
         logging.error(f'Invalid log level selected: {os.getenv(ENV_LOGLVL)}'
                       ' -- Reverting to level INFO')
 
+    log_id = os.getenv(ENV_OCI_LOG_ID)
+    if not log_id:
+        return
+
+    try:
+        from oci_log_handler import OciLoggingHandler
+
+        log_config: dict[str, str] = dict(config) if config else {}
+        signer_region: str | None = getattr(signer, 'region', None)
+        if not isinstance(signer_region, str):
+            signer_region = None
+        log_region = (
+            os.getenv(ENV_OCI_LOG_REGION)
+            or signer_region
+            or log_config.get('region')
+        )
+        if log_region:
+            log_config['region'] = log_region
+        handler = OciLoggingHandler(
+            log_id,
+            config=log_config,
+            signer=signer,
+            source='tag-updater',
+        )
+        logging.getLogger().addHandler(handler)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            'Unable to configure OCI custom-log transport; continuing with '
+            'console logging only'
+        )
+
+
+def flush_logging() -> None:
+    """Flush handlers at the end of an invocation, including OCI batches."""
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
 
 def run_update() -> tuple[int, str]:
-    configure_logging()
-    log = logging.getLogger(__name__)
-
-    log.debug(f'Log level: {os.getenv(ENV_LOGLVL, "INFO")} -- '
-              f'{log.getEffectiveLevel()}')
-
     namespace = os.getenv(ENV_NAMESPACE)
     key = os.getenv(ENV_KEY)
 
@@ -51,24 +88,32 @@ def run_update() -> tuple[int, str]:
         )
 
     config, signer = create_signer()
+    configure_logging(config, signer)
+    log = logging.getLogger(__name__)
 
-    # Compartments needs to be a list of OCIDs whether provided or not.
-    configured_compartments = os.getenv(ENV_COMPARTMENTS)
-    compartments = (
-        [compartment.strip() for compartment in configured_compartments.split(',')
-         if compartment.strip()]
-        if configured_compartments
-        else []
-    )
-    if not compartments:
-        compartments = [config['tenancy']]
+    try:
+        log.debug(f'Log level: {os.getenv(ENV_LOGLVL, "INFO")} -- '
+                  f'{log.getEffectiveLevel()}')
 
-    log.info(f'Updating tag default {namespace}.{key} in compartment(s) '
-             f'{compartments}')
+        # Compartments needs to be a list of OCIDs whether provided or not.
+        configured_compartments = os.getenv(ENV_COMPARTMENTS)
+        compartments = (
+            [compartment.strip() for compartment in configured_compartments.split(',')
+             if compartment.strip()]
+            if configured_compartments
+            else []
+        )
+        if not compartments:
+            compartments = [config['tenancy']]
 
-    tc = TagUpdater(config, compartments, signer=signer)
-    status_code, response_data = tc.update_tags(namespace, key)
+        log.info(f'Updating tag default {namespace}.{key} in compartment(s) '
+                 f'{compartments}')
 
-    log.info(f'Updates complete on compartments {", ".join(compartments)}')
+        tc = TagUpdater(config, compartments, signer=signer)
+        status_code, response_data = tc.update_tags(namespace, key)
 
-    return status_code, response_data
+        log.info(f'Updates complete on compartments {", ".join(compartments)}')
+
+        return status_code, response_data
+    finally:
+        flush_logging()

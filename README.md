@@ -72,6 +72,26 @@ CronJobs.
     - `INFO`
     - `DEBUG`
 
+- OCI_LOG_ID
+
+    OCID of an existing OCI custom log that should also receive application
+    logs. When omitted, logs continue to be written only to the Function or
+    container standard output. The configured OCI signer is used for log
+    ingestion, and logs are sent with source `tag-updater`.
+
+    The workload principal needs permission to push log content in the
+    compartment that contains this custom log:
+
+    ```text
+    Allow <principal> to use log-content in compartment <log-compartment>
+    ```
+
+- OCI_LOG_REGION
+
+    Region of the custom log. Defaults to the OCI signer region. Set this when
+    the log is in a different region, particularly if `OCI_IDENTITY_REGION`
+    points at the tenancy home region for tag updates.
+
 - DAYS
 
     Number of days to add to the current date when setting the tag default
@@ -141,6 +161,7 @@ Function IAM policies:
 ```text
 Allow dynamic-group tag_update_dg to manage tag-defaults in tenancy
 Allow dynamic-group tag_update_dg to use tag-namespaces in tenancy
+Allow dynamic-group tag_update_dg to use log-content in compartment <log-compartment>
 Allow any-user to manage functions-family in tenancy where all {request.principal.type='resourceschedule',request.principal.id='ocid1.resourceschedule...'}
 ```
 
@@ -158,6 +179,8 @@ COMPARTMENTS=<compartment-ocid-1>,<compartment-ocid-2>
 DAYS=90
 LOG_LEVEL=INFO
 OCI_SIGNER=AUTO
+OCI_LOG_ID=<custom-log-ocid>
+OCI_LOG_REGION=<custom-log-region>
 ```
 
 `OCI_SIGNER=AUTO` preserves the original OCI Functions resource-principal
@@ -240,6 +263,12 @@ Allow any-user to use tag-namespaces in tenancy where all {
   request.principal.service_account = 'tag-updater',
   request.principal.cluster_id = '<cluster-ocid>'
 }
+Allow any-user to use log-content in compartment <log-compartment> where all {
+  request.principal.type = 'workload',
+  request.principal.namespace = 'tag-updater',
+  request.principal.service_account = 'tag-updater',
+  request.principal.cluster_id = '<cluster-ocid>'
+}
 ```
 
 #### Deploy the CronJob
@@ -278,6 +307,8 @@ data:
   COMPARTMENTS: "<compartment-ocid-1>,<compartment-ocid-2>"
   DAYS: "90"
   LOG_LEVEL: "INFO"
+  OCI_LOG_ID: "<custom-log-ocid>"
+  OCI_LOG_REGION: "<custom-log-region>"
   OCI_SIGNER: "WORKLOAD_IDENTITY"
   OCI_IDENTITY_REGION: "<home-region>"
   OCI_RESOURCE_PRINCIPAL_REGION: "<oci-region>"

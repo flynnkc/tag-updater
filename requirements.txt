@@ -1,2 +1,3 @@
 fdk>=0.1.75
 oci>=2.185.0
+oci-log-handler>=0.2.0
