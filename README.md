@@ -161,8 +161,13 @@ Function IAM policies:
 ```text
 Allow dynamic-group tag_update_dg to manage tag-defaults in tenancy
 Allow dynamic-group tag_update_dg to use tag-namespaces in tenancy
-Allow dynamic-group tag_update_dg to use log-content in compartment <log-compartment>
 Allow any-user to manage functions-family in tenancy where all {request.principal.type='resourceschedule',request.principal.id='ocid1.resourceschedule...'}
+```
+
+(Optional) If using OCI Logging for Custom Log ingestion:
+
+```text
+Allow dynamic-group tag_update_dg to use log-content in compartment <log-compartment>
 ```
 
 Function configuration should include at least:
@@ -263,6 +268,11 @@ Allow any-user to use tag-namespaces in tenancy where all {
   request.principal.service_account = 'tag-updater',
   request.principal.cluster_id = '<cluster-ocid>'
 }
+```
+
+(Optional) If using OCI Logging for Custom Log ingestion:
+
+```text
 Allow any-user to use log-content in compartment <log-compartment> where all {
   request.principal.type = 'workload',
   request.principal.namespace = 'tag-updater',
@@ -364,92 +374,4 @@ Check the CronJob and its latest run:
 kubectl get cronjob tag-updater -n tag-updater
 kubectl get jobs -n tag-updater
 kubectl logs -n tag-updater job/<job-name>
-```
-
-### Helm Chart
-
-This repository includes a Helm chart at `charts/tag-updater`. The default
-schedule is daily at midnight:
-
-```yaml
-cronJob:
-  schedule: "0 0 * * *"
-```
-
-The chart can also create and label the namespace when you need namespace
-selectors for cluster policy or controllers:
-
-```yaml
-namespace:
-  create: true
-  labels:
-    workload: tag-updater
-```
-
-When `namespace.create=true`, omit `--create-namespace` so Helm can manage the
-namespace manifest and its selector labels:
-
-```sh
-helm upgrade --install tag-updater ./charts/tag-updater \
-  --namespace tag-updater \
-  --set namespace.create=true \
-  --set namespace.labels.workload=tag-updater \
-  --set image.repository=<region-key>.ocir.io/<tenancy-namespace>/<repo-name>/tag-updater \
-  --set image.tag=0.1.14 \
-  --set config.tagNamespace=<tag-namespace> \
-  --set config.tagKey=<tag-key>
-```
-
-Install with your image and tag settings:
-
-```sh
-helm upgrade --install tag-updater ./charts/tag-updater \
-  --namespace tag-updater \
-  --create-namespace \
-  --set image.repository=<region-key>.ocir.io/<tenancy-namespace>/<repo-name>/tag-updater \
-  --set image.tag=0.1.14 \
-  --set config.tagNamespace=<tag-namespace> \
-  --set config.tagKey=<tag-key> \
-  --set config.ociIdentityRegion=<home-region> \
-  --set config.ociResourcePrincipalRegion=<oci-region> \
-  --set config.ociTenancyId=<tenancy-ocid>
-```
-
-For a private OCIR repository, create the image pull secret in the target
-namespace from the CLI, then pass only the secret name to Helm. This keeps
-registry credentials out of values files.
-
-```sh
-kubectl create namespace tag-updater
-kubectl label namespace tag-updater workload=tag-updater
-
-kubectl create secret docker-registry ocir-pull-secret \
-  --namespace tag-updater \
-  --docker-server=<region-key>.ocir.io \
-  --docker-username='<tenancy-namespace>/<username>' \
-  --docker-password='<auth-token>' \
-  --docker-email='<email-address>'
-```
-
-Install the chart with `namespace.create=false` when the namespace and pull
-secret already exist:
-
-```sh
-helm upgrade --install tag-updater ./charts/tag-updater \
-  --namespace tag-updater \
-  --set image.repository=<region-key>.ocir.io/<tenancy-namespace>/<repo-name>/tag-updater \
-  --set image.tag=0.1.14 \
-  --set config.tagNamespace=<tag-namespace> \
-  --set config.tagKey=<tag-key> \
-  --set config.ociIdentityRegion=<home-region> \
-  --set config.ociResourcePrincipalRegion=<oci-region> \
-  --set config.ociTenancyId=<tenancy-ocid> \
-  --set 'imagePullSecrets[0].name=ocir-pull-secret'
-```
-
-For instance principals on a compute host or OKE node, use the same templates
-and change the signer:
-
-```text
-OCI_SIGNER=INSTANCE_PRINCIPAL
 ```
