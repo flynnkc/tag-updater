@@ -2,6 +2,7 @@
 
 import logging
 import os
+from time import monotonic
 
 from oci.signer import Signer
 
@@ -15,7 +16,7 @@ ENV_LOGLVL = 'LOG_LEVEL'
 ENV_OCI_LOG_ID = 'OCI_LOG_ID'
 ENV_OCI_LOG_REGION = 'OCI_LOG_REGION'
 
-_TREE = {
+LOG_TREE = {
     'DEBUG': logging.DEBUG,
     'INFO': logging.INFO,
     'WARNING': logging.WARNING,
@@ -24,17 +25,9 @@ _TREE = {
 }
 
 
-def configure_logging(config: dict[str, str] | None = None,
-                      signer: Signer | None = None) -> None:
-    """Configure console logging and, optionally, OCI custom-log delivery."""
-    try:
-        level = _TREE[os.getenv(ENV_LOGLVL, 'INFO').upper()]
-        logging.basicConfig(level=level, force=True)
-    except KeyError:
-        logging.basicConfig(level=logging.INFO, force=True)
-        logging.error(f'Invalid log level selected: {os.getenv(ENV_LOGLVL)}'
-                      ' -- Reverting to level INFO')
-
+def configure_oci_logging(config: dict[str, str] | None = None,
+                          signer: Signer | None = None) -> None:
+    """Add optional OCI custom-log delivery to the configured console logging."""
     log_id = os.getenv(ENV_OCI_LOG_ID)
     if not log_id:
         return
@@ -60,11 +53,26 @@ def configure_logging(config: dict[str, str] | None = None,
             source='tag-updater',
         )
         logging.getLogger().addHandler(handler)
+        logging.getLogger(__name__).info(
+            'OCI custom-log delivery enabled: log=%s region=%s',
+            log_id, log_region,
+        )
     except Exception:
         logging.getLogger(__name__).exception(
             'Unable to configure OCI custom-log transport; continuing with '
             'console logging only'
         )
+
+
+def configure_console_logging() -> None:
+    """Enable console logs before validation and signer initialization."""
+    try:
+        level = LOG_TREE[os.getenv(ENV_LOGLVL, 'INFO').upper()]
+        logging.basicConfig(level=level, force=True)
+    except KeyError:
+        logging.basicConfig(level=logging.INFO, force=True)
+        logging.error('Invalid log level selected: %s -- Reverting to level INFO',
+                      os.getenv(ENV_LOGLVL))
 
 
 def flush_logging() -> None:
@@ -74,6 +82,9 @@ def flush_logging() -> None:
 
 
 def run_update() -> tuple[int, str]:
+    started = monotonic()
+    configure_console_logging()
+    log = logging.getLogger(__name__)
     namespace = os.getenv(ENV_NAMESPACE)
     key = os.getenv(ENV_KEY)
 
@@ -82,18 +93,14 @@ def run_update() -> tuple[int, str]:
             ENV_NAMESPACE: namespace,
             ENV_KEY: key,
         }.items() if not value]
-        return (
-            400,
-            f'Missing required environment variable(s): {", ".join(missing)}',
-        )
-
-    config, signer = create_signer()
-    configure_logging(config, signer)
-    log = logging.getLogger(__name__)
+        message = f'Missing required environment variable(s): {", ".join(missing)}'
+        log.error(message)
+        return 400, message
 
     try:
-        log.debug(f'Log level: {os.getenv(ENV_LOGLVL, "INFO")} -- '
-                  f'{log.getEffectiveLevel()}')
+        log.info('Starting tag default update for %s.%s', namespace, key)
+        config, signer = create_signer()
+        configure_oci_logging(config, signer)
 
         # Compartments needs to be a list of OCIDs whether provided or not.
         configured_compartments = os.getenv(ENV_COMPARTMENTS)
@@ -105,15 +112,22 @@ def run_update() -> tuple[int, str]:
         )
         if not compartments:
             compartments = [config['tenancy']]
+            log.info('COMPARTMENTS not configured; using tenancy root compartment')
 
-        log.info(f'Updating tag default {namespace}.{key} in compartment(s) '
-                 f'{compartments}')
+        log.info('Updating tag default %s.%s in %d compartment(s): %s; '
+                 'identity region=%s', namespace, key, len(compartments),
+                 ', '.join(compartments), config.get('region'))
 
         tc = TagUpdater(config, compartments, signer=signer)
         status_code, response_data = tc.update_tags(namespace, key)
 
-        log.info(f'Updates complete on compartments {", ".join(compartments)}')
+        log.log(logging.INFO if 200 <= status_code < 300 else logging.ERROR,
+                'Tag default update finished: status=%d duration=%.2fs result=%s',
+                status_code, monotonic() - started, response_data)
 
         return status_code, response_data
+    except Exception:
+        log.exception('Tag default update failed after %.2fs', monotonic() - started)
+        raise
     finally:
         flush_logging()

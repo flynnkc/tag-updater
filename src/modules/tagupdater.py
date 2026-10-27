@@ -25,21 +25,31 @@ class TagUpdater:
     # Entrypoint method to change tags
     def update_tags(self, namespace: str, key: str) -> tuple[int, str]:
         errors: list[str] = []  # Collect errors outside the loop.
+        matched = 0
+        updated = 0
 
         # OCI likes to treat non-success responses as exceptions -- prevent it
         # from stopping execution with try/except
         try:
-            for default in self.get_tag_defaults(namespace, key):
+            defaults = self.get_tag_defaults(namespace, key)
+            matched = len(defaults)
+            if not defaults:
+                self.log.info('No matching tag defaults for %s.%s; no updates needed',
+                              namespace, key)
+            for default in defaults:
                 details = identity.models.UpdateTagDefaultDetails(
                     is_required=default.is_required,
                     value=self.get_value()
                 )
 
-                self.log.debug(f'Updating tag default {default.id} with '
-                               f'{details.value}')
+                self.log.debug('Updating tag default %s with %s', default.id,
+                               details.value)
                 
                 try:
                     self.client.update_tag_default(default.id, details)
+                    updated += 1
+                    self.log.info('Updated tag default %s (%s.%s): value=%s',
+                                  default.id, namespace, key, details.value)
                 except ServiceError as e:
                     error = (f'{e.status} - {e.operation_name} - '
                                 f'{default.tag_definition_name}/{default.id}')
@@ -53,6 +63,10 @@ class TagUpdater:
                 error = f'{e.status} - {e.operation_name} - {namespace}.{key}'
             self.log.error(error)
             errors.append(error)
+
+        self.log.log(logging.ERROR if errors else logging.INFO,
+                     'Tag default update summary for %s.%s: matched=%d updated=%d '
+                     'errors=%d', namespace, key, matched, updated, len(errors))
 
         # Unhappy path
         if errors:
@@ -79,17 +93,25 @@ class TagUpdater:
 
         defaults: list[Any] = []
         for cmp in self.compartments:
+            self.log.info('Listing tag defaults in compartment %s', cmp)
             response = pagination.list_call_get_all_results(
                 self.client.list_tag_defaults, compartment_id=cmp)
             
+            matches = 0
             for result in response.data:
                 if result.tag_definition_name == key and result.tag_namespace_id == ns_id:
                     defaults.append(result)
+                    matches += 1
+            self.log.info('Compartment %s: scanned=%d matched=%d for %s.%s',
+                          cmp, len(response.data), matches, namespace, key)
 
-        self.log.debug(f'Found tag defaults {", ".join([default.id for default in defaults])}')
+        self.log.debug('Found tag defaults %s',
+                       ', '.join(default.id for default in defaults))
         return defaults
 
     def get_tag_namespace(self, namespace: str) -> str:
+        self.log.info('Resolving tag namespace %s in tenancy %s',
+                      namespace, self.config['tenancy'])
         response = pagination.list_call_get_all_results(
             self.client.list_tag_namespaces,
             self.config['tenancy'],
@@ -98,6 +120,7 @@ class TagUpdater:
 
         for item in response.data:
             if item.name == namespace:
+                self.log.info('Resolved tag namespace %s: %s', namespace, item.id)
                 return item.id
 
         raise ValueError(f'Tag namespace not found: {namespace}')

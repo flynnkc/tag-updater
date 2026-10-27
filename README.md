@@ -72,6 +72,13 @@ CronJobs.
     - `INFO`
     - `DEBUG`
 
+    At `INFO`, logs show the selected authentication type and regions, target
+    compartments, namespace resolution, scanned and matching tag-default counts
+    per compartment, each successful update and its value, and final matched,
+    updated, and error counts. The run result includes its status and elapsed
+    time. Runs with no matching defaults explicitly report that no updates were
+    needed. `DEBUG` also includes update attempts and matching default IDs.
+
 - OCI_LOG_ID
 
     OCID of an existing OCI custom log that should also receive application

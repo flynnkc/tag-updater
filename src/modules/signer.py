@@ -32,7 +32,7 @@ _AUTH_TYPES = {
 
 def create_signer(auth_type: str | None = None) -> tuple[dict[str, str], Any]:
     signer_type = _resolve_auth_type(auth_type)
-    log.debug(f'Creating OCI {signer_type} signer')
+    log.info('Creating OCI %s signer', signer_type)
 
     if signer_type == AUTH_INSTANCE_PRINCIPAL:
         signer = InstancePrincipalsSecurityTokenSigner()
@@ -47,7 +47,8 @@ def create_signer(auth_type: str | None = None) -> tuple[dict[str, str], Any]:
         'tenancy': _get_tenancy_id(signer),
     }
 
-    log.debug(f'Created OCI {signer_type} signer')
+    log.info('Created OCI %s signer: signer region=%s identity region=%s',
+             signer_type, signer_region, cfg['region'])
 
     return cfg, signer
 
